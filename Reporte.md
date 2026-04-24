@@ -1,4 +1,4 @@
-# Construcción y Análisis de Cadenas de Explotación en Android: CVE-2020-16040 (V8 Type Confusion) y CVE-2021-0920 (Escalada de Privilegios en Kernel)
+# Pruebas de concepto (PoC) y Análisis de Cadenas de Explotación en Android: CVE-2020-16040 (V8 Type Confusion) y CVE-2021-0920 (Escalada de Privilegios en Kernel)
 
 **Instituto Tecnológico y de Estudios Superiores de Occidente (ITESO)**  
 Proyecto de Aplicación Profesional – PAP ITESO 2026  
@@ -12,7 +12,7 @@ Colaboración: SocialTIC
 ## Índice
 
 1. [Introducción](#1-introducción)
-2. [Explanation – Marco Conceptual](#2-explanation-marco-conceptual)
+2. [Explanation](#2-explanation-marco-conceptual)
    - 2.1 [¿Qué es una cadena de explotación?](#21-qué-es-una-cadena-de-explotación)
    - 2.2 [Uso en escenarios reales: ataques dirigidos a activistas](#22-uso-en-escenarios-reales-ataques-dirigidos-a-activistas)
 3. [Reference – Referencia Técnica](#3-reference-referencia-técnica)
@@ -29,11 +29,8 @@ Colaboración: SocialTIC
 
 El panorama contemporáneo de la ciberseguridad está definido, en gran medida, por la sofisticación creciente de los ataques dirigidos. A diferencia de las amenazas genéricas que buscan vectores masivos de infección, las operaciones ofensivas modernas contra objetivos de alto valor —periodistas, activistas, disidentes políticos o funcionarios gubernamentales— requieren la construcción de artefactos técnicos de considerable complejidad: las denominadas cadenas de explotación (*exploit chains*). Estos mecanismos encadenan múltiples vulnerabilidades, cada una de las cuales abre la siguiente puerta en una secuencia controlada, con el objetivo de superar progresivamente las distintas capas defensivas que componen los sistemas operativos y los navegadores modernos.
 
-El presente documento describe y analiza el trabajo práctico desarrollado en el marco del Proyecto de Aplicación Profesional (PAP) correspondiente al ciclo ITESO 2026, en colaboración con SocialTIC. La investigación se enfocó en la construcción y comprensión de una cadena de explotación dirigida a dispositivos Android, tomando como piezas fundamentales dos vulnerabilidades públicamente documentadas: CVE-2020-16040, una vulnerabilidad de confusión de tipos en el motor JavaScript V8 del navegador Chromium, y CVE-2021-0920, una vulnerabilidad de *use-after-free* en el subsistema Unix garbage collector del kernel Linux —tal como se implementa en Android—, que permite la escalada de privilegios desde el contexto del proceso comprometido hasta el nivel del sistema.
+El presente documento describe el proceso práctico desarrollado en el marco del Proyecto de Aplicación Profesional (PAP) correspondiente al ciclo ITESO Primavera 2026, en colaboración con SocialTIC. La investigación se enfocó en la construcción y comprensión de una cadena de explotación dirigida a dispositivos Android, tomando como piezas fundamentales dos vulnerabilidades públicamente documentadas: CVE-2020-16040, una vulnerabilidad de confusión de tipos en el motor JavaScript V8 del navegador Chromium, y CVE-2021-0920, una vulnerabilidad de *use-after-free* en el subsistema Unix garbage collector del kernel Linux —tal como se implementa en Android—, que permite la escalada de privilegios desde el contexto del proceso comprometido hasta el nivel del sistema. El trabajo combina análisis estático y dinámico, implementación de pruebas de concepto (PoC), experimentación en dispositivo físico con Android 9 (ARM64) y análisis forense posterior mediante las herramientas Mobile Verification Toolkit (MVT) y androidqf. 
 
-El trabajo combina análisis estático y dinámico, implementación de pruebas de concepto (PoC), experimentación en dispositivo físico con Android 9 (ARM64) y análisis forense posterior mediante las herramientas Mobile Verification Toolkit (MVT) y androidqf. La estructura del documento sigue el modelo Diátaxis, una arquitectura de documentación técnica que distingue con precisión cuatro tipos de contenido: *Explanation* (explicación conceptual), *Reference* (referencia técnica), *Tutorial* (descripción de lo que se hizo) y *How-To* (instrucciones para reproducir o validar el trabajo). Esta separación tiene como propósito garantizar que cada sección sea útil de forma independiente según el perfil del lector, sin mezclar comprensión teórica con procedimiento operativo.
-
-Desde el punto de vista académico, el valor de este trabajo reside menos en la novedad de las vulnerabilidades estudiadas —que son de dominio público y cuentan con parches disponibles— y más en el proceso de comprensión profunda de los mecanismos internos del navegador y del kernel que hacen posible su explotación. Entender cómo una confusión de tipos en el compilador JIT de V8 puede derivar en capacidades arbitrarias de lectura y escritura en memoria, y cómo esas capacidades se conectan con una primitiva de escalada de privilegios en el kernel, es esencial para cualquier profesional que aspire a desarrollar sistemas de detección, análisis de amenazas o defensa proactiva en entornos Android.
 
 ---
 
