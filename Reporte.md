@@ -52,25 +52,53 @@ Las cadenas de explotación son cruciales para la seguridad digital, especialmen
 
 #### 3.1.1 Descripción del componente afectado
 
-V8 es el motor de JavaScript de código abierto de Google, usado en Chromium, responsable de parsear, compilar y ejecutar el código de las páginas web.  Implementa varios *pipelines*: Ignition (intérprete de *bytecode*) y dos compiladores JIT, Sparkplug y TurboFan. TurboFan, el más agresivo en optimización, genera código máquina de alto rendimiento usando una representación intermedia llamada «*sea of nodes*» y especulación de tipos.  Asume que los tipos de los objetos se mantienen estables, generando código optimizado que evita verificaciones de tipo.  Si el tipo cambia, el motor debe desoptimizar. La vulnerabilidad CVE-2020-16040 permitía que, bajo ciertas condiciones, esta desoptimización fallara, dejando a TurboFan operando con una representación de tipo incorrecta sobre un objeto cuyo tipo real había cambiado.
+V8 es el motor de JavaScript de Chrome, encargado de ejecutar el código de las páginas web. Para mejorar el rendimiento, utiliza un compilador llamado TurboFan, que transforma JavaScript en código máquina optimizado.
+
+TurboFan asume que los tipos de los objetos permanecen constantes durante la ejecución, lo que le permite eliminar validaciones y acelerar el código. Si esta suposición deja de cumplirse, el motor debería revertir la optimización (desoptimizar).
+
+La vulnerabilidad CVE-2020-16040 ocurre cuando este mecanismo falla: TurboFan continúa ejecutando código optimizado aun cuando el tipo real del objeto ha cambiado, generando una inconsistencia en la interpretación de la memoria.
 
 
 #### 3.1.2 Type Confusion
 
+Una confusión de tipos (type confusion) ocurre cuando un programa interpreta una región de memoria como si fuera de un tipo distinto al real.
+
+En el contexto de V8, esto significa que un objeto puede ser tratado como si tuviera una estructura interna diferente (por ejemplo, interpretar datos como números cuando en realidad son punteros).
+
+Esta situación rompe las garantías de seguridad del motor, ya que permite leer o escribir valores en memoria fuera de los límites esperados. En CVE-2020-16040, la confusión se produce debido a que TurboFan mantiene una suposición incorrecta sobre el tipo de un objeto después de una optimización inválida.
 
 #### 3.1.3 De type confusion a AAR/AAW y RCE
+
+A partir de la confusión de tipos, es posible manipular la memoria del proceso y construir primitivas de explotación.
+
+Primero, el atacante obtiene la capacidad de interpretar datos como direcciones de memoria, lo que permite implementar funciones como addrof (obtener la dirección de un objeto) y fakeobj (crear un objeto en una dirección controlada).
+
+Estas primitivas habilitan operaciones de lectura y escritura arbitraria en memoria (AAR/AAW), lo que significa que el atacante puede acceder y modificar cualquier región del proceso.
+
+Finalmente, este control permite redirigir la ejecución del programa hacia código controlado por el atacante, logrando ejecución de código arbitrario (RCE) dentro del proceso del navegador.
 
 ---
 
 ### 3.2 CVE-2021-0920: Escalada de Privilegios en el Kernel Android
 
 #### 3.2.1 Descripción del componente afectado
+La vulnerabilidad CVE-2021-0920 afecta al subsistema de sockets Unix del kernel Linux, específicamente a la función unix_gc(), encargada de liberar memoria asociada a descriptores de archivo cuando ya no están en uso.
+
+Este mecanismo forma parte de la gestión interna del kernel para mantener la integridad de los recursos del sistema. Sin embargo, errores en este proceso pueden provocar inconsistencias en la memoria, lo que abre la puerta a vulnerabilidades críticas.
 
 #### 3.2.2 Use-after-free y race-condition
+Un use-after-free (UAF) ocurre cuando un programa continúa utilizando una región de memoria que ya ha sido liberada. Si esa memoria es reutilizada, su contenido puede ser controlado por un atacante.
+
+En CVE-2021-0920, este comportamiento se combina con una condición de carrera (race condition): múltiples hilos interactúan con estructuras de sockets al mismo tiempo, generando un escenario donde el kernel libera un objeto mientras otro hilo aún lo está utilizando.
+
+Esta desincronización permite que el atacante controle el contenido de la memoria liberada, reemplazándolo por datos manipulados.
 
 #### 3.2.3 Primitiva de escalada de privilegios
+A partir del UAF, el atacante obtiene la capacidad de corromper estructuras internas del kernel, como descriptores de archivo o referencias a objetos.
 
-#### 3.2.4 Relación con la cadena de explotación
+Manipulando estas estructuras, es posible modificar credenciales del proceso o redirigir punteros hacia datos controlados, lo que permite elevar privilegios desde un usuario sin privilegios hasta nivel root.
+
+Dentro de una cadena de explotación, esta vulnerabilidad representa el paso final: una vez que el atacante ya ejecuta código en espacio de usuario (por ejemplo, desde el navegador), este fallo en el kernel permite romper el aislamiento del sistema y obtener control total del dispositivo.
 
 
 ---
