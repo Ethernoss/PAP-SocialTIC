@@ -13,7 +13,7 @@ Colaboración: SocialTIC
 ## Índice
 
 <!-- TOC -->
-<!-- /TOC -->
+<!-- /TOC -->-
 - [Pruebas de concepto (PoC) y Análisis de Cadenas de Explotación en Android: CVE-2020-16040 (V8 Type Confusion) y CVE-2021-0920 (Escalada de Privilegios en Kernel)](#pruebas-de-concepto-poc-y-análisis-de-cadenas-de-explotación-en-android-cve-2020-16040-v8-type-confusion-y-cve-2021-0920-escalada-de-privilegios-en-kernel)
   - [Índice](#índice)
   - [Índice](#índice-1)
