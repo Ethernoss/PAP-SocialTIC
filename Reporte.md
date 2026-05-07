@@ -357,8 +357,7 @@ Sin embargo, durante el desarrollo del proyecto se identificó una limitación c
 
 ## 5. How-To: Análisis Forense y Hallazgos
 
-Esta sección tiene propósito procedimental: describe cómo reproducir los pasos de análisis forense realizados en el proyecto, qué artefactos buscar en un dispositivo potencialmente comprometido, y cómo interpretar la evidencia recopilada. Está orientada a un lector técnico que desee aplicar estos procedimientos a sus propias investigaciones.
-
+Esta sección tiene como propósito describir la interpretación de la evidencia recopilada desde una perspectiva forense. A partir de los artefactos obtenidos durante las pruebas se busca correlacionar los eventos registrados por Android con las distintas etapas del exploit, con el fin de comprender el alcance real de las pruebas realizadas y las limitaciones observadas durante el proceso de explotación.
 
 #### 5.1 Requisitos previos
 android qf
