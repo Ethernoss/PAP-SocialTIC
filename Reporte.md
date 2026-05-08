@@ -45,8 +45,9 @@ Colaboración: SocialTIC
       - [4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox](#433-resultado-ejecución-en-el-renderer-y-limitaciones-del-sandbox)
     - [4.4 Análisis de CVE-2021-0920 en contexto aislado](#44-análisis-de-cve-2021-0920-en-contexto-aislado)
   - [5. How-To: Análisis Forense y Hallazgos](#5-how-to-análisis-forense-y-hallazgos)
-      - [5.1 Requisitos previos](#51-requisitos-previos)
-      - [5.2 Obtención de androidqf](#52-obtención-de-androidqf)
+    - [5.1 AndroidQF](#51-androidqf)
+      - [5.1.1  Obtención de androidqf](#511--obtención-de-androidqf)
+    - [5.2 MVT](#52-mvt)
     - [5.3 Análisis con MVT](#53-análisis-con-mvt)
     - [5.4 Análisis de tombstones y logcat](#54-análisis-de-tombstones-y-logcat)
     - [5.5 Evidencia obtenida y hallazgos del proyecto](#55-evidencia-obtenida-y-hallazgos-del-proyecto)
@@ -359,13 +360,25 @@ Sin embargo, durante el desarrollo del proyecto se identificó una limitación c
 
 Esta sección tiene como propósito describir la interpretación de la evidencia recopilada desde una perspectiva forense. A partir de los artefactos obtenidos durante las pruebas se busca correlacionar los eventos registrados por Android con las distintas etapas del exploit, con el fin de comprender el alcance real de las pruebas realizadas y las limitaciones observadas durante el proceso de explotación.
 
-#### 5.1 Requisitos previos
-android qf
-android mvt
-modificación de mvt
+### 5.1 AndroidQF
 
-#### 5.2 Obtención de androidqf
+#### 5.1.1  Obtención de androidqf
+Primero se realizó la extracción forense del dispositivo, para ello se utilizó la herramienta AndroidQF obtenida del siguiente repositorio:
+```text
+https://github.com/mvt-project/androidqf/
+```
+
 comando de extraccion
+path/to/ androidqf/dist
+
+### 5.2 MVT
+
+Luego, mediante la extracción obtenido se le aplica un comando para parsear o hacer de más fácil lectura los archivos obtenidos, esto se logra con la herramienta MVT
+
+
+Previamente se necesitó realizar una modificación al código de MVT para permitir que el formato de un componente (tombstone) fuera válido y poder realizar el parseo correctamente
+
+
 
 ### 5.3 Análisis con MVT
 se le aplica mvt a la extraccion
