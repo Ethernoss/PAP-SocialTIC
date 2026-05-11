@@ -11,7 +11,6 @@ Colaboración: SocialTIC
 ## Índice
 
 ## Índice
-
 <!-- TOC -->
 <!-- /TOC -->-
 - [Pruebas de concepto (PoC) y Análisis de Cadenas de Explotación en Android: CVE-2020-16040 (V8 Type Confusion) y CVE-2021-0920 (Escalada de Privilegios en Kernel)](#pruebas-de-concepto-poc-y-análisis-de-cadenas-de-explotación-en-android-cve-2020-16040-v8-type-confusion-y-cve-2021-0920-escalada-de-privilegios-en-kernel)
@@ -44,17 +43,17 @@ Colaboración: SocialTIC
       - [4.3.2 Ajuste de offsets y verificación](#432-ajuste-de-offsets-y-verificación)
       - [4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox](#433-resultado-ejecución-en-el-renderer-y-limitaciones-del-sandbox)
     - [4.4 Análisis de CVE-2021-0920 en contexto aislado](#44-análisis-de-cve-2021-0920-en-contexto-aislado)
+    - [4.5 Timeline Attack](#45-timeline-attack)
   - [5. How-To: Análisis Forense y Hallazgos](#5-how-to-análisis-forense-y-hallazgos)
     - [5.1 AndroidQF](#51-androidqf)
       - [5.1.1  Obtención de androidqf](#511--obtención-de-androidqf)
     - [5.2 MVT](#52-mvt)
-    - [5.3 Análisis con MVT](#53-análisis-con-mvt)
-    - [5.4 Análisis de tombstones y logcat](#54-análisis-de-tombstones-y-logcat)
-    - [5.5 Evidencia obtenida y hallazgos del proyecto](#55-evidencia-obtenida-y-hallazgos-del-proyecto)
-      - [5.4.1 Estructura de un tombstone](#541-estructura-de-un-tombstone)
-      - [5.4.2 Patrones en logcat asociados a explotación del navegador](#542-patrones-en-logcat-asociados-a-explotación-del-navegador)
+      - [5.2.1  Aplicación de MVT](#521--aplicación-de-mvt)
+    - [5.3 Análisis de evidencia](#53-análisis-de-evidencia)
+    - [5.3.1 Evidencia obtenida](#531-evidencia-obtenida)
   - [6. Conclusión](#6-conclusión)
   - [Referencias](#referencias)
+
 
 ---
 
@@ -354,6 +353,10 @@ Encadenada con la vulnerabilidad de Chrome, el objetivo era usar la ejecución o
 
 Sin embargo, durante el desarrollo del proyecto se identificó una limitación clave: el proceso renderer de Chrome opera en un entorno altamente restringido con sandboxing y filtros seccomp-bpf. Estas restricciones limitan el acceso a varias syscalls necesarias para interactuar directamente con el subsistema vulnerable del kernel.
 
+
+### 4.5 Timeline Attack
+ 
+
 ---
 
 ## 5. How-To: Análisis Forense y Hallazgos
@@ -367,37 +370,291 @@ Primero se realizó la extracción forense del dispositivo, para ello se utiliz�
 ```text
 https://github.com/mvt-project/androidqf/
 ```
+Se utilizó el siguiente comando para la extracción extraccion, se utilizó la flag "-v" para obtener más información al momento de la extracción.
 
-comando de extraccion
-path/to/ androidqf/dist
+```bash
+path/to/androidqf_macos_universal_1.8.1-6-gdcfc1e9 -o /path/to/save/extraction -v 
+```
+
+Una vez ejecutado obtenemos lo siguiente en el directorio donde se guardó la información extraida:
+<p align="center">
+  <img src="images/clean.png" width="700">
+</p>
+
+<p align="center">
+  Figura 3. Información extraida con AndroidQF.
+</p>
 
 ### 5.2 MVT
 
-Luego, mediante la extracción obtenido se le aplica un comando para parsear o hacer de más fácil lectura los archivos obtenidos, esto se logra con la herramienta MVT
+#### 5.2.1  Aplicación de MVT
+Luego, con la extracción obtenida se le aplica un comando para parsear o hacer de más fácil lectura los archivos obtenidos, esto se logra con la herramienta MVT, el comando es el siguiente
+
+```bash
+mvt-android check-androidqf path/saved/androidqf/extraction -o path/to/save/mvt/extraction
+```
+Y como se observa en la siguiente imagen se generan los siguientes archivos:
+<p align="center">
+  <img src="images/clean2.png" width="700">
+</p>
+
+<p align="center">
+  Figura 4. Información parseada con MVT.
+</p>
+
+Previo a lo anterior se identificó que los tombstones generados por el dispositivo ZTE Blade V10 no contenían algunos campos esperados por el modelo interno de MVT, específicamente los campos `timestamp` y `uid`. Debido a esto, MVT generaba errores de validación utilizando al intentar construir el objeto `TombstoneCrashResult`.
+
+Todas las modificaciones se realizaron en el archivo:
+
+```text
+src/mvt/android/artifacts/tombstone_crashes.py
+```
+
+Dentro de la clase `TombstoneCrashResult`, ajustando los siguientes campos para permitir valores opcionales:
+
+- `timestamp`
+- `uid`
+
+```python
+class TombstoneCrashResult(pydantic.BaseModel):
+    """
+    MVT Result model for a tombstone crash result.
+
+    Needed for validation and serialization, and consistency between text and protobuf tombstones.
+    """
+   ...
+    timestamp: Optional[str]  # We store the timestamp as a string to avoid timezone issues
+    uid: Optional[int]
+   ...
+
+```
+
+Posteriormente se identificó que el problema no solo se encontraba en el modelo de validación, sino también en el parser encargado de interpretar los tombstones en texto plano.
+
+Se trabajó dentro de la función:
+
+```python
+def parse(...)
+```
+
+En esta función se agregó lógica para completar manualmente los campos faltantes dentro de `tombstone_dict` antes de ejecutar:
+
+TombstoneCrashResult.model_validate(tombstone_dict)
+
+Los campos agregados o completados fueron:
+
+- `timestamp`
+- `uid`
+- `signal_info`
+- `process_name`
+- `pid`
+- `tid`
+- `build_fingerprint`
+- `revision`
+
+Para el campo `timestamp`, debido a que el tombstone del dispositivo no incluía una línea `Timestamp:`, se utilizó como fallback el valor contenido en:
+
+`file_timestamp`
+
+Para el campo `uid`, al no existir dentro del tombstone original, se agregó un valor por defecto de:
+```text
+-1
+```
+
+También se agregó validación para garantizar que `signal_info` siempre existiera antes de la validación del modelo, incluyendo los campos:
+
+- `code`
+- `code_name`
+- `name`
+- `number`
 
 
-Previamente se necesitó realizar una modificación al código de MVT para permitir que el formato de un componente (tombstone) fuera válido y poder realizar el parseo correctamente
+```python
+def parse(
+   ...
+   # timestamp fallback
+        if "timestamp" not in tombstone_dict:
+            tombstone_dict["timestamp"] = tombstone_dict["file_timestamp"]
+        # uid fallback
+        if "uid" not in tombstone_dict:
+            tombstone_dict["uid"] = -1
+        # process_name fallback
+        if "process_name" not in tombstone_dict:
+            tombstone_dict["process_name"] = "unknown"
+        # signal_info fallback
+        if "signal_info" not in tombstone_dict:
+            tombstone_dict["signal_info"] = {
+                "code": -1,
+                "code_name": "UNKNOWN",
+                "name": "UNKNOWN",
+                "number": -1,
+            }
+        # build_fingerprint fallback
+        if "build_fingerprint" not in tombstone_dict:
+            tombstone_dict["build_fingerprint"] = "unknown"
+        # revision fallback
+        if "revision" not in tombstone_dict:
+            tombstone_dict["revision"] = "0"
+        # pid/tid fallback
+        if "pid" not in tombstone_dict:
+            tombstone_dict["pid"] = -1
+        if "tid" not in tombstone_dict:
+            tombstone_dict["tid"] = -1
+   ...
+```
+
+Posteriormente se realizaron modificaciones en la función:
+
+```python
+def _load_pid_line(...)
+```
+
+El objetivo fue corregir la extracción del nombre del proceso (`process_name`) desde líneas con el formato:
+
+pid: 6944, tid: 6944, name: .android.chrome  >>> com.android.chrome <<<
+
+Originalmente el parser no interpretaba correctamente este formato específico generado por el dispositivo ZTE. La modificación permitió extraer correctamente:
+```text
+com.android.chrome
+```
+
+como valor de `process_name`.
+
+```python
+   # Extraer nombre real del proceso (>>> com.android.chrome <<<)
+   if len(parts) > 1:
+         tombstone["process_name"] = parts[1].strip().rstrip(" <")
+```
+
+Adicionalmente se modificó la función:
+
+```python
+def _load_key_value_line(...)
+```
+
+para evitar que se generaran excepciones (`ValueError`) cuando alguna línea del tombstone no coincidiera exactamente con el formato esperado por MVT. En lugar de detener completamente el parsing, el parser continuó procesando el resto de las líneas válidas del archivo.
+
+Finalmente, tras las modificaciones realizadas, se logró parsear correctamente los tombstones generados por el dispositivo.
+
+<p align="center">
+  <img src="images/mvt.png" width="700">
+</p>
+
+<p align="center">
+  Figura 5. Parseo con MVT.
+</p>
 
 
+### 5.3 Análisis de evidencia
 
-### 5.3 Análisis con MVT
-se le aplica mvt a la extraccion
-
-### 5.4 Análisis de tombstones y logcat
+En este apartado se realizará un análisis desde una perspectiva forense, omitiendo el contexto en el que se obtuvieron las pruebas. El objetivo es demostrar cómo se interpreta la evidencia recopilada y cómo, a partir de ella, es posible identificar indicios de que el dispositivo presentó un comportamiento anómalo o pudo haber sido comprometido. 
 
 
-### 5.5 Evidencia obtenida y hallazgos del proyecto
+### 5.3.1 Evidencia obtenida
+
+Se realizó un análisis exhaustivo de cada uno de los archivos extraidos mediante MVT dando como resultado los siguientes hallazgos:
+
+Dentro del archivo:
+```text
+aqf_settings.json
+```
+
+Se detectó evidencia de modificación de valores en los siguientes campos:
+
+- `package_verifier_user_consent = -1  → Google Play Protect desactivado por el usuario`
+- `package_verifier_state = -1  → Verificación de paquetes APK desactivada`
+- `install_non_market_apps = 1  → Instalación desde fuentes desconocidas habilitada`
+- `development_settings_enabled = 1  → Opciones de desarrollador activas`
+- `adb_enabled = 1  → ADB habilitado`
+
+Aunque se requiere más evidencia para confirmarlo, la modificación de estos valores puede interpretarse como un posible indicio de manipulación orientada a evadir comportamientos de seguridad esperados en el dispositivo.
+Por ejemplo, un valor de -1 puede indicar que el usuario rechazó o deshabilitó una actividad específica. En este caso, los registros apuntan a la verificación de paquetes APK y a Google Play Protect desactivado. Esto permite plantear la hipótesis de que, una vez comprometido el dispositivo, el atacante pudo haber desactivado estas validaciones para facilitar la instalación de un APK malicioso y ejecutar actividades no autorizadas.
 
 
-#### 5.4.1 Estructura de un tombstone
-????
+El siguiente indicio de que el dispositivo pudo haber sido comprometido se encuentran en los siguientes archivos
 
-#### 5.4.2 Patrones en logcat asociados a explotación del navegador
-????
+```text
+aqf_get_prop.json / mounts.json
+```
+
+Dentro de  `aqf_get_prop.json` se encuentran los siguientes campos:
+
+- `init.svc.adbd = running` → El daemon ADB está corriendo
+- `sys.usb.state = charging,adb` → El estado USB combina carga y ADB
+- `persist.sys.usb.config = adb` → La configuración ADB es persistente entre reinicios
+- `sys.usb.ffs.ready = 1` → El subsistema FunctionFS está listo para conexiones
+
+Con estos valores, es posible concluir que el dispositivo presenta indicios de manipulación. Esto se debe a que ADB no viene habilitado por defecto en un dispositivo Android y, además, no debería mantenerse activo de forma persistente. Si ADB permanece habilitado incluso después de reiniciar el dispositivo, significa que este podría seguir siendo administrado mediante una conexión ADB autorizada.
+
+Bajo estas condiciones, una persona con acceso físico temporal al dispositivo mediante cable USB podría ejecutar comandos arbitrarios, extraer información, instalar APKs o modificar configuraciones sin que el usuario lo perciba fácilmente.
+
+Adicionalmente, el archivo `mounts.json` confirma a nivel de sistema de archivos que el endpoint USB de ADB se encuentra montado como un sistema de archivos de tipo functionfs en la ruta `/dev/usb-ffs/adb`, con permisos de lectura y escritura.
+
+En un escenario de ataque, esto solo requeriría que el atacante hubiera autorizado previamente su clave RSA en el dispositivo. Una vez que dicha clave queda registrada en `/data/misc/adb/adb_keys`, el dispositivo puede aceptar conexiones desde ese equipo autorizado sin volver a mostrar un diálogo de confirmación al usuario.
+
+
+Como tercer indicio, dentro del archivo:
+```text
+aqf_get_prop.json → ro.build.version.security_patch
+```
+
+Se pudo detectar que el dispositivo cuenta con un parche de 2021-04-05, acumulando más de cinco años de vulnerabilidades sin corregir sobre kernel Linux, framework Android, Bluetooth, F2FS y componentes MediaTek. El caso más representativo es CVE-2021-0920 — use-after-free en el garbage collector de sockets Unix del kernel — para el cual el vendor de vigilancia Wintego desarrolló un exploit activo que, combinado con exploits de Chrome, permitía rootear dispositivos Android de forma remota, y que el propio boletín de Android de noviembre de 2021 confirmó como bajo explotación limitada y dirigida en la naturaleza — parche que este dispositivo nunca recibió. A ese CVE se suman, entre otros: CVE-2021-1048 (use-after-free en eventpoll, escalación de privilegios sin interacción del usuario), CVE-2022-38181 (ARM Mali GPU, escalación de privilegios sin interacción), CVE-2023-0266 (ALSA kernel, use-after-free con escalación a ring0), CVE-2023-26083 (Mali GPU, fuga de punteros de kernel que anula KASLR) y CVE-2023-21250 (Android System, RCE remoto sin interacción del usuario). 
+
+AL encontrarse en este estado, el dispositivo es susceptible a que un atacante pueda encadenar alguna vulnerabilidad para poder tener acceso con privilegios de `root`.
+
+Por último se encontró dentro del archivo: 
+```text
+tombstones.json
+```
+
+El proceso com.android.chrome (PID 6944, arquitectura arm) terminó el 2026-04-18 17:16:58 con señal SIGSEGV (SEGV_MAPERR) por "null pointer dereference". Sabiendo que un tombstone es un archivo de volcado que el sistema genera automáticamente cada vez que un proceso nativo termina de forma anormal, me hace pensar en dos posibles causas: que algún proceso se haya ejecutado y por error en el sistema lo haya terminado, o que haya sido provocado por algún tipo de ejecución. 
+Dado al contexto previo en el que he visto el comportamiento del dispositivo, observé que el tombstone señala el archivo de Chrome, lo cual me parece sospechoso que haya sido por algún fallo, por lo que no puede descartarse que el crash sea el resultado de un intento de explotación del navegador.
+
+Varios elementos refuerzan esta hipótesis. El thread que recibió la señal fatal es el TID 7491, distinto al PID principal 6944, lo que indica que el crash ocurrió en un thread secundario — el tipo de thread donde Chrome ejecuta contenido web externo. El subtipo SEGV_MAPERR confirma que el acceso fue a una dirección completamente no mapeada, patrón compatible con la desreferencia de un puntero corrupto o nulo producto de una condición de memoria forzada. Adicionalmente, el proceso corría en arquitectura arm de 32 bits sobre un dispositivo arm64, lo que es técnicamente relevante porque los exploits de navegador suelen apuntar específicamente al proceso renderer en 32 bits, donde las protecciones de memoria son más débiles y el espacio de direcciones es más predecible.
+
+```json
+    {
+        "file_name": "tombstone_01",
+        "file_timestamp": "2026-04-18 17:16:58.000000",
+        "build_fingerprint": "ZTE/ZTE_Blade_V10/P671F20:9/PPR1.180610.011/20210409.184845:user/release-keys",
+        "revision": "0",
+        "arch": "arm",
+        "timestamp": "2026-04-18 17:16:58.000000",
+        "process_uptime": null,
+        "command_line": null,
+        "pid": 6944,
+        "tid": 7491,
+        "process_name": "com.android.chrome",
+        "binary_path": null,
+        "selinux_label": null,
+        "uid": -1,
+        "signal_info": {
+            "code": 1,
+            "code_name": "SEGV_MAPERR",
+            "name": "SIGSEGV",
+            "number": 11
+        },
+        "cause": "null pointer dereference",
+        "extra": null
+    }
+```
+Dado este análisis, concluyo que el dispositivo cuenta con indicios de haber sido comprometido. Sin embargo, considero que la evidencia recopilada no es suficiente para determinar si el dispositivo contenía spyware o no. Evidentemente, existen señales anómalas relevantes, como la persistencia de ADB, la posible desactivación de mecanismos de verificación de paquetes y la presencia de eventos que sugieren manipulación del entorno de seguridad del dispositivo.
+
+No obstante, estos elementos deben interpretarse como indicadores de riesgo y no como una confirmación definitiva de infección por spyware. Para llegar a una conclusión más sólida sería necesario contar con más evidencia, como análisis profundo de aplicaciones instaladas, revisión de conexiones de red, identificación de procesos sospechosos, correlación temporal de eventos y búsqueda de indicadores de compromiso específicos.
+
+Por lo tanto, el hallazgo principal es que el dispositivo presenta condiciones compatibles con una posible manipulación o preparación para instalación de software no autorizado, pero no se puede afirmar de manera concluyente la presencia de spyware únicamente con la evidencia disponible.
+
 
 ---
 
 ## 6. Conclusión
+El desarrollo de este proyecto me permitió comprender de manera práctica qué son ycómo funcionan las cadenas de explotación en dispositivos Android, así como las dificultades reales asociadas a su implementación y análisis. A través del estudio de CVE-2020-16040 y CVE-2021-0920 fue posible analizar el comportamiento de vulnerabilidades que afectan tanto al espacio de usuario como al kernel del sistema operativo, entendiendo cómo distintos componentes pueden encadenarse dentro de un escenario de ataque más complejo.
+
+Adicionalmente, el proyecto permitió aplicar herramientas y metodologías de análisis forense sobre Android, interpretando artefactos como `logcat`, *tombstones* y configuraciones del sistema para identificar comportamientos anómalos y posibles indicadores de manipulación del dispositivo. Esto reforzó la relación entre la investigación ofensiva y el análisis defensivo, mostrando cómo el entendimiento técnico de las vulnerabilidades puede contribuir también a procesos de detección e investigación forense.
+
+Por otra parte, el trabajo me permitió expandir mis conocimientos relacionados con Red teaming como explotación de memoria, y Blue Team en análisis de vulnerabilidades, funcionamiento interno de Android y análisis forense móvil, proporcionando una visión más amplia sobre los retos técnicos y metodológicos involucrados en el estudio de amenazas avanzadas sobre dispositivos móviles.
+
+Finalmente, me quedo satisfecho con lo logrado y aprendido durante este proyecto. Comprender cómo tecnologías invasivas, como el spyware, pueden afectar a sectores activistas en México resulta preocupante, especialmente porque evidencia que aún existen riesgos graves para quienes buscan generar un cambio social. Este trabajo me permitió dimensionar que la seguridad digital no es únicamente un tema técnico, sino también humano y social. Ninguna persona debería enfrentar vigilancia, persecución o compromiso de sus dispositivos por ejercer actividades legítimas de defensa, denuncia o participación social.
 
 ---
 
