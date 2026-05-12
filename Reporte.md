@@ -9,13 +9,10 @@ Colaboración: SocialTIC
 
 
 ## Índice
-
-## Índice
 <!-- TOC -->
-<!-- /TOC -->-
+<!-- /TOC -->
 - [Pruebas de concepto (PoC) y Análisis de Cadenas de Explotación en Android: CVE-2020-16040 (V8 Type Confusion) y CVE-2021-0920 (Escalada de Privilegios en Kernel)](#pruebas-de-concepto-poc-y-análisis-de-cadenas-de-explotación-en-android-cve-2020-16040-v8-type-confusion-y-cve-2021-0920-escalada-de-privilegios-en-kernel)
   - [Índice](#índice)
-  - [Índice](#índice-1)
   - [1. Introducción](#1-introducción)
   - [2. Explicación](#2-explicación)
     - [2.1 ¿Qué es una cadena de explotación?](#21-qué-es-una-cadena-de-explotación)
@@ -43,7 +40,6 @@ Colaboración: SocialTIC
       - [4.3.2 Ajuste de offsets y verificación](#432-ajuste-de-offsets-y-verificación)
       - [4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox](#433-resultado-ejecución-en-el-renderer-y-limitaciones-del-sandbox)
     - [4.4 Análisis de CVE-2021-0920 en contexto aislado](#44-análisis-de-cve-2021-0920-en-contexto-aislado)
-    - [4.5 Timeline Attack](#45-timeline-attack)
   - [5. How-To: Análisis Forense y Hallazgos](#5-how-to-análisis-forense-y-hallazgos)
     - [5.1 AndroidQF](#51-androidqf)
       - [5.1.1  Obtención de androidqf](#511--obtención-de-androidqf)
@@ -51,8 +47,13 @@ Colaboración: SocialTIC
       - [5.2.1  Aplicación de MVT](#521--aplicación-de-mvt)
     - [5.3 Análisis de evidencia](#53-análisis-de-evidencia)
     - [5.3.1 Evidencia obtenida](#531-evidencia-obtenida)
+    - [5.4 Timeline Attack](#54-timeline-attack)
+      - [2026-04-16 14:41:16 — UME Browser termina con SIGTRAP](#2026-04-16-144116--ume-browser-termina-con-sigtrap)
+      - [2026-04-18 17:09:42 — Modificación de archivos de metadata de recovery durante operación normal](#2026-04-18-170942--modificación-de-archivos-de-metadata-de-recovery-durante-operación-normal)
+      - [2026-04-18 17:16:58 — Chrome termina con SIGSEGV en thread secundario](#2026-04-18-171658--chrome-termina-con-sigsegv-en-thread-secundario)
   - [6. Conclusión](#6-conclusión)
   - [Referencias](#referencias)
+
 
 
 ---
@@ -353,8 +354,6 @@ Encadenada con la vulnerabilidad de Chrome, el objetivo era usar la ejecución o
 
 Sin embargo, durante el desarrollo del proyecto se identificó una limitación clave: el proceso renderer de Chrome opera en un entorno altamente restringido con sandboxing y filtros seccomp-bpf. Estas restricciones limitan el acceso a varias syscalls necesarias para interactuar directamente con el subsistema vulnerable del kernel.
 
-
-### 4.5 Timeline Attack
  
 
 ---
@@ -643,6 +642,101 @@ Dado este análisis, concluyo que el dispositivo cuenta con indicios de haber si
 No obstante, estos elementos deben interpretarse como indicadores de riesgo y no como una confirmación definitiva de infección por spyware. Para llegar a una conclusión más sólida sería necesario contar con más evidencia, como análisis profundo de aplicaciones instaladas, revisión de conexiones de red, identificación de procesos sospechosos, correlación temporal de eventos y búsqueda de indicadores de compromiso específicos.
 
 Por lo tanto, el hallazgo principal es que el dispositivo presenta condiciones compatibles con una posible manipulación o preparación para instalación de software no autorizado, pero no se puede afirmar de manera concluyente la presencia de spyware únicamente con la evidencia disponible.
+
+### 5.4 Timeline Attack
+
+Antes de cualquier evento registrado, el dispositivo ya llegaba al período analizado con una configuración que desde el punto de vista forense no puede considerarse accidental. El parche de seguridad databa del `2021-04-05`, con aproximadamente cinco años de antigüedad.
+
+Google Play Protect estaba desactivado mediante:
+
+```text
+package_verifier_state = -1
+package_verifier_user_consent = -1
+```
+
+Estos valores requieren una acción deliberada del usuario y no corresponden al estado por defecto del sistema. Las fuentes desconocidas estaban habilitadas, ADB permanecía activo de forma persistente mediante:
+
+```text
+persist.sys.usb.config = adb
+```
+
+y las opciones de desarrollador estaban encendidas.
+
+También se identificó el receptor:
+
+```text
+com.android.phone/com.android.services.telephony.sip.SipIncomingCallReceiver
+```
+
+Este componente coincide posteriormente con indicadores STIX2 asociados a TheOneSpy. Todo esto ya existía antes del primer evento fechado.
+
+---
+
+
+#### 2026-04-16 14:41:16 — UME Browser termina con SIGTRAP
+
+Aproximadamente tres horas y media después de la instalación de los juegos, el proceso:
+
+```text
+com.ume.browser.cust
+```
+
+generó el `tombstone_00` con señal:
+
+```text
+SIGTRAP
+TRAP_BRKPT
+```
+
+A diferencia de un crash ordinario por bug de software, un breakpoint en un binario de producción no suele ocurrir de forma espontánea. La señal `SIGTRAP` en este contexto puede ser compatible con depuración, instrumentación o mecanismos anti-análisis.
+
+Este evento no confirma por sí solo un compromiso, pero sí representa un hallazgo relevante dentro de la línea de tiempo.
+
+---
+
+#### 2026-04-18 17:09:42 — Modificación de archivos de metadata de recovery durante operación normal
+
+Cuatro archivos dentro de `/data/misc/recovery/` fueron modificados:
+
+```text
+ro.build.fingerprint
+proc/version
+proc/version.1
+ro.build.fingerprint.1
+```
+
+Estos archivos normalmente se escriben durante operaciones de recovery o actualización del sistema, no durante el uso cotidiano del dispositivo.
+
+Su modificación a las `17:09:42`, en plena operación normal y sin evidencia clara de reinicio o entrada a recovery mode, representa una anomalía relevante. Lo  importante es que ocurrió aproximadamente siete minutos antes del crash de Chrome.
+
+---
+
+#### 2026-04-18 17:16:58 — Chrome termina con SIGSEGV en thread secundario
+
+Siete minutos después de la modificación anómala de archivos de recovery, el proceso:
+
+```text
+com.android.chrome
+```
+
+con PID `6944`, generó el `tombstone_01`.
+
+El crash ocurrió en el thread secundario `TID 7491`, no en el hilo principal. El tombstone registró:
+
+```text
+Fatal signal 11 (SIGSEGV)
+code 1 (SEGV_MAPERR)
+fault addr 0x0
+```
+
+Esto indica un acceso inválido a memoria. El subtipo `SEGV_MAPERR` señala que la dirección accedida no estaba mapeada, mientras que `fault addr 0x0` corresponde a una desreferenciación de puntero nulo.
+
+El hecho de que el fallo ocurriera en un thread secundario de Chrome es relevante porque el contenido web suele procesarse en procesos o hilos separados relacionados con el renderer.
+
+Desde una perspectiva de explotación, este patrón es compatible con corrupción de memoria o resolución incorrecta de punteros internos. No permite afirmar una ejecución exitosa de código arbitrario, pero sí constituye evidencia de un fallo anómalo dentro del contexto del navegador.
+
+Considerando el estado desactualizado del navegador y la existencia de vulnerabilidades conocidas que afectan versiones antiguas de Chrome, este crash puede interpretarse como compatible con un intento fallido de explotación del renderer o con un fallo provocado por comportamiento anómalo del proceso.
+
 
 
 ---
