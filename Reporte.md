@@ -297,7 +297,7 @@ var shellcode = [
     addr_high    // datos: parte alta de la dirección de flag_buffer
 ];
 ```
-Las dos primeras instrucciones (LDR X0 y LDR X1) cargan, respectivamente, el valor de verificación 0xDEADBEEFCAFEBABE y la dirección del flag_buffer usando direccionamiento relativo al PC; ambos valores están almacenados inline inmediatamente después de las instrucciones. La instrucción STR X0, [X1] escribe ese valor en el flag_buffer. Finalmente, RET devuelve el control al caller sin provocar un crash, lo que permite que la etapa de verificación posterior pueda ejecutarse correctamente.
+Las dos primeras instrucciones (LDR X0 y LDR X1) cargan, respectivamente, el valor de verificación 0xDEADBEEFCAFEBABE y la dirección del flag_buffer usando direccionamiento relativo al PC; ambos valores están almacenados inline inmediatamente después de las instrucciones. La instrucción `STR X0,[X1]`  escribe ese valor en el flag_buffer. Finalmente, RET devuelve el control al caller sin provocar un crash, lo que permite que la etapa de verificación posterior pueda ejecutarse correctamente.
 
 Finalmente, la ejecución es activada invocando la función Wasm:
 ```javascript
@@ -794,8 +794,6 @@ Google Project Zero. (2020). *CVE-2020-16040 analysis: V8 type confusion in Turb
 Google Project Zero. (2021). *CVE-2021-0920: Linux kernel unix_gc use-after-free*. Project Zero Issue Tracker. https://bugs.chromium.org/p/project-zero/
 
 CVE-2020-16040 Analysis and Exploitation. (s/f). Homecrew.dev. Recuperado el 13 de mayo de 2026, de https://homecrew.dev/posts/cve-2020-16040.html
-
-Agarwal, R. (s/f). CVE-2020-16040 at master · r4j0x00/exploits.
 
 Microsoft edge (chromium) < 87.0.664.57 multiple vulnerabilities. (s/f). Tenable.com. Recuperado el 13 de mayo de 2026, de https://www.tenable.com/plugins/nessus/143588
 
