@@ -17,7 +17,7 @@ Colaboración: SocialTIC
   - [2. Explicación](#2-explicación)
     - [2.1 ¿Qué es una cadena de explotación?](#21-qué-es-una-cadena-de-explotación)
     - [2.2 Uso en escenarios reales.](#22-uso-en-escenarios-reales)
-  - [3. Reference: Referencia Técnica](#3-reference-referencia-técnica)
+  - [3. Referencia Técnica](#3-referencia-técnica)
     - [3.1 CVE-2020-16040: Type Confusion en el Motor V8 de Chromium](#31-cve-2020-16040-type-confusion-en-el-motor-v8-de-chromium)
       - [3.1.1 Descripción del componente afectado](#311-descripción-del-componente-afectado)
       - [3.1.2 Type Confusion](#312-type-confusion)
@@ -26,7 +26,7 @@ Colaboración: SocialTIC
       - [3.2.1 Descripción del componente afectado](#321-descripción-del-componente-afectado)
       - [3.2.2 Use-after-free y race-condition](#322-use-after-free-y-race-condition)
       - [3.2.3 Primitiva de escalada de privilegios](#323-primitiva-de-escalada-de-privilegios)
-  - [4. Tutorial: Implementación del Proyecto](#4-tutorial-implementación-del-proyecto)
+  - [4. Implementación del Proyecto](#4-implementación-del-proyecto)
     - [4.1 Configuración del entorno de trabajo](#41-configuración-del-entorno-de-trabajo)
       - [4.1.1 Hardware y sistema operativo objetivo](#411-hardware-y-sistema-operativo-objetivo)
       - [4.1.2 Entorno de desarrollo y análisis](#412-entorno-de-desarrollo-y-análisis)
@@ -40,7 +40,7 @@ Colaboración: SocialTIC
       - [4.3.2 Ajuste de offsets y verificación](#432-ajuste-de-offsets-y-verificación)
       - [4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox](#433-resultado-ejecución-en-el-renderer-y-limitaciones-del-sandbox)
     - [4.4 Análisis de CVE-2021-0920 en contexto aislado](#44-análisis-de-cve-2021-0920-en-contexto-aislado)
-  - [5. How-To: Análisis Forense y Hallazgos](#5-how-to-análisis-forense-y-hallazgos)
+  - [5. Análisis Forense y Hallazgos](#5-análisis-forense-y-hallazgos)
     - [5.1 AndroidQF](#51-androidqf)
       - [5.1.1  Obtención de androidqf](#511--obtención-de-androidqf)
     - [5.2 MVT](#52-mvt)
@@ -69,7 +69,7 @@ El presente documento describe el proceso práctico desarrollado en el marco del
 
 ### 2.1 ¿Qué es una cadena de explotación?
 
-Una cadena de explotación (*exploit chain*) es una secuencia ordenada de vulnerabilidades que, al encadenarse, permite a un atacante alcanzar un objetivo de control que ninguna de las vulnerabilidades individuales podría lograr por sí sola la cadena de explotación, por ejemplo, comienza con la primera vulnerabilidad de la cadena, que típicamente provee acceso inicial dentro de un proceso con privilegios reducidos. Una vez dentro de este proceso, la segunda vulnerabilidad permite escapar del *sandbox* (un método para aislar procesos como mecanismo de defensa) para ganar acceso al proceso privilegiado, como el navegador o directamente al espacio de usuario del sistema operativo. Si el objetivo es el control total del dispositivo, una tercera vulnerabilidad eleva los permisos del atacante de usuario sin privilegios a superusuario (*root*), otorgándole control completo y sin reestricción sobre el sistema.
+Una cadena de explotación (*exploit chain*) es una secuencia ordenada de vulnerabilidades que, al encadenarse, permite a un atacante alcanzar un objetivo de control que ninguna de las vulnerabilidades individuales podría lograr por sí sola la cadena de explotación, por ejemplo, comienza con la primera vulnerabilidad de la cadena, que típicamente provee acceso inicial dentro de un proceso con privilegios reducidos. Una vez dentro de este proceso, la segunda vulnerabilidad permite escapar del *sandbox* (un método para aislar procesos como mecanismo de defensa) para ganar acceso al proceso privilegiado, como el navegador o directamente al espacio de usuario del sistema operativo. Si el objetivo es el control total del dispositivo, una tercera vulnerabilidad eleva los permisos del atacante de usuario sin privilegios a superusuario (*root*), otorgándole control completo y sin restricción sobre el sistema.
 
 
 ### 2.2 Uso en escenarios reales.
@@ -79,7 +79,7 @@ Las cadenas de explotación son cruciales para la seguridad digital, especialmen
 ---
 
 
-## 3. Reference: Referencia Técnica
+## 3. Referencia Técnica
 
 ### 3.1 CVE-2020-16040: Type Confusion en el Motor V8 de Chromium
 
@@ -89,7 +89,7 @@ V8 es el motor de JavaScript de Chrome, encargado de ejecutar el código de las 
 
 TurboFan asume que los tipos de los objetos permanecen constantes durante la ejecución, lo que le permite eliminar validaciones y acelerar el código. Si esta suposición deja de cumplirse, el motor debería revertir la optimización (desoptimizar).
 
-La vulnerabilidad CVE-2020-16040 ocurre cuando este mecanismo falla: TurboFan continúa ejecutando código optimizado aun cuando el tipo real del objeto ha cambiado, generando una inconsistencia en la interpretación de la memoria.
+La vulnerabilidad CVE-2020-16040 ocurre cuando este mecanismo falla: TurboFan continúa ejecutando código optimizado aún cuando el tipo real del objeto ha cambiado, generando una inconsistencia en la interpretación de la memoria.
 
 
 #### 3.1.2 Type Confusion
@@ -137,7 +137,7 @@ Dentro de una cadena de explotación, esta vulnerabilidad representa el paso fin
 ---
 
 
-## 4. Tutorial: Implementación del Proyecto
+## 4. Implementación del Proyecto
 
 Esta sección describe de forma narrativa el trabajo técnico real realizado durante el proyecto. Su propósito es documentar el proceso, las decisiones tomadas, los obstáculos encontrados y los resultados observados.
 
@@ -145,14 +145,21 @@ Esta sección describe de forma narrativa el trabajo técnico real realizado dur
 
 #### 4.1.1 Hardware y sistema operativo objetivo
 
-El dispositivo objetivo utilizado en el proyecto fue un teléfono Android con procesador ARM64 ejecutando Android 9 (Pie, API level 28). La elección de Android 9 responde a dos criterios: es la versión en la que el navegador Chrome 86.0.4240.75 —la versión afectada por CVE-2020-16040— fue ampliamente utilizado, y es una versión sin parche para CVE-2021-0920, lo que la convierte en el contexto más realista para estudiar la cadena completa. El dispositivo contaba con la depuración USB (ADB) habilitada y *root* desactivado por defecto, replicando las condiciones de un dispositivo de usuario regular sin modificaciones.
+El dispositivo objetivo utilizado en el proyecto fue un teléfono Android con procesador ARM64 ejecutando Android 9 (Pie, API level 28). Esta versión fue seleccionada porque representa un entorno móvil antiguo y sin parches recientes, adecuado para estudiar una cadena de ataque compuesta por una etapa inicial en navegador y una posible escalada de privilegios a nivel de kernel.
+
+El navegador disponible en el dispositivo fue Chrome `72.0.3626.121`. Esta versión se utilizó como superficie de ataque para la etapa inicial de la cadena, tomando en cuenta que las técnicas de explotación sobre V8 dependen de forma importante de la versión del navegador, la arquitectura y el *layout* interno de memoria.
+
+El dispositivo contaba con depuración USB (ADB) habilitada y *root* desactivado por defecto, lo que permitió realizar pruebas, extracción de evidencia y análisis forense.
 
 | Parámetro | Valor |
 |---|---|
-| Sistema Operativo | Android 9.0 (Pie) –  |
+| Sistema Operativo | Android 9.0 (Pie) |
+| API level | 28 |
 | Arquitectura | ARM64 (aarch64) |
 | Navegador objetivo | Chrome 72.0.3626.121 |
-| Nivel de parche de seguridad | Anterior a noviembre 2020 |
+| Estado de root | Desactivado por defecto |
+| Depuración USB | Habilitada |
+| Nivel de parche de seguridad | Desactualizado |
 
 #### 4.1.2 Entorno de desarrollo y análisis
 
@@ -161,6 +168,14 @@ El trabajo de desarrollo, análisis y depuración se realizó desde un *host* co
 ### 4.2 Análisis del exploit para CVE-2020-16040
 
 ### Explicación del Código
+
+El código tomado como referencia para la replicación de la Prueba de Concepto, se encuentra disponible en el siguiente repositorio:
+
+```text
+https://github.com/r4j0x00/exploits/blob/master/CVE-2020-16040/exploit.js
+```
+
+Dado que se tuvieron que realizar modificaciones, dentro de este repositorio, en la carpeta `Resources` podrán encontrar un archivo con el nombre `test.js` el cual contiene el código modificado que fue utilizado para realizar estas pruebas el cual es explicado a continuación.
 
 #### 4.2.1 Construcción de la primitiva addrof/fakeobj
 El exploit comienza provocando una confusión de tipos en V8 mediante la función foo(). Esta función fuerza a TurboFan a generar una optimización incorrecta sobre arreglos, permitiendo acceder a memoria fuera de los límites esperados.
@@ -267,10 +282,29 @@ Una vez localizada la región RWX, el shellcode ARM64 es copiado mediante:
 ```javascript
 copy_shellcode(target_addr, shellcode);
 ```
+El shellcode utilizado en esta etapa es un stub de verificación en ARM64, compuesto por nueve palabras de 32 bits. Su propósito no es ejecutar un payload real, sino demostrar que la ejecución llegó a la región RWX y que el control del flujo fue transferido correctamente. El stub se construye dinámicamente en tiempo de ejecución, con las direcciones objetivo embebidas directamente en el cuerpo del código:
+
+```javascript
+var shellcode = [
+    0x58000060,  // LDR X0, [PC+offset] — carga el valor  desde datos inline
+    0x58000081,  // LDR X1, [PC+offset] — carga la dirección destino desde datos inline
+    0xf9000020,  // STR X0, [X1]        — escribe el valor en la dirección destino
+    0xd65f03c0,  // RET                 — retorna limpiamente al caller
+    0xd503201f,  // NOP                 — relleno de alineación
+    0xCAFEBABE,  // datos: parte baja del valor 0xDEADBEEFCAFEBABE
+    0xDEADBEEF,  // datos: parte alta del valor 0xDEADBEEFCAFEBABE
+    addr_low,    // datos: parte baja de la dirección de flag_buffer
+    addr_high    // datos: parte alta de la dirección de flag_buffer
+];
+```
+Las dos primeras instrucciones (LDR X0 y LDR X1) cargan, respectivamente, el valor de verificación 0xDEADBEEFCAFEBABE y la dirección del flag_buffer usando direccionamiento relativo al PC; ambos valores están almacenados inline inmediatamente después de las instrucciones. La instrucción STR X0, [X1] escribe ese valor en el flag_buffer. Finalmente, RET devuelve el control al caller sin provocar un crash, lo que permite que la etapa de verificación posterior pueda ejecutarse correctamente.
+
 Finalmente, la ejecución es activada invocando la función Wasm:
 ```javascript
 f();
 ```
+Dicha función corresponde al export main del módulo WebAssembly instanciado: f = wasm_instance.exports.main. Cuando V8 compila un módulo WebAssembly, genera código nativo para cada función exportada y lo almacena en la región RWX asignada al módulo. En el heap de V8, el objeto que representa a f mantiene una cadena de punteros internos que conducen, a través de su SharedFunctionInfo y su WasmExportedFunctionData, hasta la dirección de entrada de ese código nativo en la región RWX. Al invocar f(), el motor de JavaScript recorre esa cadena y salta a la dirección de entrada. Dado que en este punto el exploit ya ha sobreescrito el contenido de la región RWX con el shellcode mediante copy_shellcode(), la invocación de f() no ejecuta el código WebAssembly original, sino que transfiere el control directamente al shellcode del atacante.
+
 El exploit verifica el éxito comprobando la modificación de un valor específico en memoria:
 ```javascript
 if(flag_view[0] === 0xDEADBEEFCAFEBABEn) {
@@ -293,6 +327,8 @@ El *exploit* fue entregado al dispositivo objetivo a través de un servidor HTTP
 <p align="center">
   Figura 1. Página de phishing.
 </p>
+
+El archivo `html`correspondiente a esta página puede ser encontrado en la carpeta `Resources` con el nombre `index.html`
 
 
 Dentro del dispositivo Android preparado, simulando ser la víctima, se accedió desde el navegador Chrome con versión 72.0.3626.121 a la página HTML de entrega contenía el *exploit* JavaScript completo e inicializaba automáticamente la secuencia de explotación al ser cargada. 
@@ -318,7 +354,7 @@ Estos fallos evidenciaban que el exploit alcanzaba las fases de resolución de e
 
 #### 4.3.2 Ajuste de offsets y verificación
 
-Después de las primeras ejecuciones del exploit, el comportamiento observado no correspondía a una ejecución estable de código arbitrario, sino a crashes del proceso renderer de Chrome. Esto hizo evidente que los offsets utilizados por el exploit no coincidían correctamente con el layout interno de la versión específica de Chrome instalada en el dispositivo objetivo.
+Después de las primeras ejecuciones del exploit, se observó que no era una ejecución estable de código arbitrario, sino a crashes del proceso renderer de Chrome. Esto hizo evidente que los offsets utilizados por el exploit no coincidían con el layout interno de la versión específica de Chrome instalada.
 
 El exploit dependía de navegar estructuras internas de V8 y WebAssembly utilizando desplazamientos de memoria específicos. Entre estas estructuras se encontraban referencias asociadas al objeto NativeModule, tablas de salto (jump tables), punteros internos de funciones Wasm y direcciones de memoria potencialmente ejecutables (RWX). Si alguno de estos offsets era incorrecto, el exploit terminaba resolviendo punteros inválidos o nulos.
 
@@ -329,7 +365,7 @@ Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0
 ```
 Este comportamiento sugería que el exploit lograba alcanzar fases avanzadas de manipulación de memoria dentro del renderer, pero fallaba durante la resolución de estructuras internas necesarias para continuar la cadena de explotación. En lugar de obtener una dirección válida hacia regiones ejecutables o estructuras Wasm, algunos punteros terminaban apuntando a memoria no mapeada.
 
-A partir de estos resultados, se realizó un proceso iterativo de ajuste de offsets. Para cada ejecución se modificaban valores relacionados con estructuras internas de V8 y posteriormente se validaba el comportamiento del proceso mediante adb logcat, observando si el crash ocurría en fases diferentes del exploit o si cambiaba el patrón del fallo.
+A partir de estos resultados, se realizó un ajuste de offsets de forma manual. Para cada ejecución se modificaban valores, se realizaba una ejecución y posteriormente se validaba el comportamiento del proceso mediante adb logcat, observando si el crash ocurría en fases diferentes del exploit o si cambiaba el patrón del fallo.
 
 Durante este análisis también se confirmó que los procesos afectados correspondían a procesos aislados (sandboxed processes) del navegador Chrome, específicamente instancias de SandboxedProcessService.
 
@@ -341,7 +377,7 @@ Esto indicaba que el exploit efectivamente interactuaba con el proceso renderer 
 
 
 #### 4.3.3 Resultado: ejecución en el renderer y limitaciones del sandbox
-El resultado final de las pruebas fue la generación consistente de crashes dentro del proceso renderer de Chrome al ejecutar el exploit en el dispositivo Android objetivo. Los registros obtenidos mediante logcat mostraban reinicios automáticos de procesos SandboxedProcessService acompañados de errores SIGSEGV, lo que confirmaba accesos inválidos a memoria dentro del contexto del navegador.
+El resultado final de las pruebas resultó en crashes dentro del proceso renderer de Chrome. Las salidas en logcat mostraban reinicios automáticos de procesos SandboxedProcessService acompañados de errores SIGSEGV, lo que confirmaba accesos inválidos a memoria dentro del contexto del navegador.
 
 Aunque estos resultados no constituyen evidencia suficiente para afirmar una ejecución exitosa de shellcode o una ejecución completa de código arbitrario (RCE), sí indican que el exploit logró alterar el comportamiento normal del renderer y alcanzar etapas avanzadas de corrupción de memoria dentro de V8.
 
@@ -352,13 +388,12 @@ La vulnerabilidad CVE-2021-0920, segundo eslabón de la cadena de explotación d
 
 Encadenada con la vulnerabilidad de Chrome, el objetivo era usar la ejecución obtenida en el renderer para interactuar con el kernel mediante llamadas al sistema relacionadas con sockets Unix.  Mediante múltiples hilos y operaciones concurrentes, el atacante intentaría provocar la condición de carrera necesaria para reutilizar memoria liberada y reemplazarla por datos controlados.
 
-Sin embargo, durante el desarrollo del proyecto se identificó una limitación clave: el proceso renderer de Chrome opera en un entorno altamente restringido con sandboxing y filtros seccomp-bpf. Estas restricciones limitan el acceso a varias syscalls necesarias para interactuar directamente con el subsistema vulnerable del kernel.
+Sin embargo, durante el desarrollo del proyecto se identificó que el proceso renderer de Chrome restringía con sandboxing y filtros seccomp-bpf. Estas restricciones limitan el acceso a varias syscalls necesarias para interactuar directamente con el subsistema vulnerable del kernel.
 
- 
 
 ---
 
-## 5. How-To: Análisis Forense y Hallazgos
+## 5. Análisis Forense y Hallazgos
 
 Esta sección tiene como propósito describir la interpretación de la evidencia recopilada desde una perspectiva forense. A partir de los artefactos obtenidos durante las pruebas se busca correlacionar los eventos registrados por Android con las distintas etapas del exploit, con el fin de comprender el alcance real de las pruebas realizadas y las limitaciones observadas durante el proceso de explotación.
 
@@ -369,19 +404,19 @@ Primero se realizó la extracción forense del dispositivo, para ello se utiliz�
 ```text
 https://github.com/mvt-project/androidqf/
 ```
-Se utilizó el siguiente comando para la extracción extraccion, se utilizó la flag "-v" para obtener más información al momento de la extracción.
+Se utilizó el siguiente comando para la extracción, se utilizó la flag "-v" para obtener más información al momento de la extracción.
 
 ```bash
 path/to/androidqf_macos_universal_1.8.1-6-gdcfc1e9 -o /path/to/save/extraction -v 
 ```
 
-Una vez ejecutado obtenemos lo siguiente en el directorio donde se guardó la información extraida:
+Una vez ejecutado obtenemos lo siguiente en el directorio donde se guardó la información extraída:
 <p align="center">
   <img src="images/clean.png" width="700">
 </p>
 
 <p align="center">
-  Figura 3. Información extraida con AndroidQF.
+  Figura 3. Información extraída con AndroidQF.
 </p>
 
 ### 5.2 MVT
@@ -551,7 +586,7 @@ En este apartado se realizará un análisis desde una perspectiva forense, omiti
 
 ### 5.3.1 Evidencia obtenida
 
-Se realizó un análisis exhaustivo de cada uno de los archivos extraidos mediante MVT dando como resultado los siguientes hallazgos:
+Se realizó un análisis exhaustivo de cada uno de los archivos extraídos mediante MVT dando como resultado los siguientes hallazgos:
 
 Dentro del archivo:
 ```text
@@ -599,7 +634,7 @@ aqf_get_prop.json → ro.build.version.security_patch
 
 Se pudo detectar que el dispositivo cuenta con un parche de 2021-04-05, acumulando más de cinco años de vulnerabilidades sin corregir sobre kernel Linux, framework Android, Bluetooth, F2FS y componentes MediaTek. El caso más representativo es CVE-2021-0920 — use-after-free en el garbage collector de sockets Unix del kernel — para el cual el vendor de vigilancia Wintego desarrolló un exploit activo que, combinado con exploits de Chrome, permitía rootear dispositivos Android de forma remota, y que el propio boletín de Android de noviembre de 2021 confirmó como bajo explotación limitada y dirigida en la naturaleza — parche que este dispositivo nunca recibió. A ese CVE se suman, entre otros: CVE-2021-1048 (use-after-free en eventpoll, escalación de privilegios sin interacción del usuario), CVE-2022-38181 (ARM Mali GPU, escalación de privilegios sin interacción), CVE-2023-0266 (ALSA kernel, use-after-free con escalación a ring0), CVE-2023-26083 (Mali GPU, fuga de punteros de kernel que anula KASLR) y CVE-2023-21250 (Android System, RCE remoto sin interacción del usuario). 
 
-AL encontrarse en este estado, el dispositivo es susceptible a que un atacante pueda encadenar alguna vulnerabilidad para poder tener acceso con privilegios de `root`.
+Al encontrarse en este estado, el dispositivo es susceptible a que un atacante pueda encadenar alguna vulnerabilidad para poder tener acceso con privilegios de `root`.
 
 Por último se encontró dentro del archivo: 
 ```text
@@ -742,7 +777,7 @@ Considerando el estado desactualizado del navegador y la existencia de vulnerabi
 ---
 
 ## 6. Conclusión
-El desarrollo de este proyecto me permitió comprender de manera práctica qué son ycómo funcionan las cadenas de explotación en dispositivos Android, así como las dificultades reales asociadas a su implementación y análisis. A través del estudio de CVE-2020-16040 y CVE-2021-0920 fue posible analizar el comportamiento de vulnerabilidades que afectan tanto al espacio de usuario como al kernel del sistema operativo, entendiendo cómo distintos componentes pueden encadenarse dentro de un escenario de ataque más complejo.
+El desarrollo de este proyecto me permitió comprender de manera práctica qué son y cómo funcionan las cadenas de explotación en dispositivos Android, así como las dificultades reales asociadas a su implementación y análisis. A través del estudio de CVE-2020-16040 y CVE-2021-0920 fue posible analizar el comportamiento de vulnerabilidades que afectan tanto al espacio de usuario como al kernel del sistema operativo, entendiendo cómo distintos componentes pueden encadenarse dentro de un escenario de ataque más complejo.
 
 Adicionalmente, el proyecto permitió aplicar herramientas y metodologías de análisis forense sobre Android, interpretando artefactos como `logcat`, *tombstones* y configuraciones del sistema para identificar comportamientos anómalos y posibles indicadores de manipulación del dispositivo. Esto reforzó la relación entre la investigación ofensiva y el análisis defensivo, mostrando cómo el entendimiento técnico de las vulnerabilidades puede contribuir también a procesos de detección e investigación forense.
 
@@ -757,4 +792,18 @@ Finalmente, me quedo satisfecho con lo logrado y aprendido durante este proyecto
 Google Project Zero. (2020). *CVE-2020-16040 analysis: V8 type confusion in TurboFan*. Google Project Zero Blog. https://googleprojectzero.blogspot.com/
 
 Google Project Zero. (2021). *CVE-2021-0920: Linux kernel unix_gc use-after-free*. Project Zero Issue Tracker. https://bugs.chromium.org/p/project-zero/
+
+CVE-2020-16040 Analysis and Exploitation. (s/f). Homecrew.dev. Recuperado el 13 de mayo de 2026, de https://homecrew.dev/posts/cve-2020-16040.html
+
+Agarwal, R. (s/f). CVE-2020-16040 at master · r4j0x00/exploits.
+
+Microsoft edge (chromium) < 87.0.664.57 multiple vulnerabilities. (s/f). Tenable.com. Recuperado el 13 de mayo de 2026, de https://www.tenable.com/plugins/nessus/143588
+
+Faraz. (s/f). Analyzing CVE-2020-16040. Faraz.Faith. Recuperado el 13 de mayo de 2026, de https://faraz.faith/2021-01-07-cve-2020-16040-analysis/
+
+Src/compiler/simplified-lowering.Cc - v8/v8.Git - git at Google. (s/f). Googlesource.com. Recuperado el 13 de mayo de 2026, de https://chromium.googlesource.com/v8/v8.git/+/ba1b2cc09ab98b51ca3828d29d19ae3b0a7c3a92/src/compiler/simplified-lowering.cc
+
+r4j0x. (2021, abril 6). Google chrome 86.0.4240 V8 - remote code execution. Exploit Database. https://www.exploit-db.com/shellcodes/49745
+
+No sandbox. (s/f). No-Sandbox. Recuperado el 13 de mayo de 2026, de https://no-sandbox.io/
 
